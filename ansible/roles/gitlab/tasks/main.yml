@@ -1,0 +1,78 @@
+---
+# tasks file for roles/docker
+
+# - name: Install GitLab EE
+#   hosts: gitlab_servers
+#   become: true
+#   vars:
+#       gitlab_external_url: "http://localhost"
+#       gitlab_edition: "gitlab-ee"
+#       gitlab_version: latest # Set a specific version if needed, e.g. "16.2.3-ee.0"
+#       gitlab_pin_version: false
+#       # Set to true if you want to configure a custom root password
+#       configure_root_password: false
+#       gitlab_root_password: "" # Set this if configure_root_password is true
+
+# tasks:
+- name: Update apt cache
+  ansible.builtin.apt:
+      update_cache: true
+
+- name: Install required dependencies
+  ansible.builtin.apt:
+      name:
+          - curl
+          - openssh-server
+          - ca-certificates
+          - tzdata
+          - perl
+      state: present
+
+- name: Install Postfix for email notifications
+  ansible.builtin.apt:
+      name: postfix
+      state: present
+
+- name: Configure Postfix as an Internet Site
+  ansible.builtin.debconf:
+      name: postfix
+      question: postfix/main_mailer_type
+      value: "Internet Site"
+      vtype: string
+
+- name: Set Postfix mailname to server's external DNS
+  ansible.builtin.debconf:
+      name: postfix
+      question: postfix/mailname
+      value: "{{ ansible_fqdn }}"
+      vtype: string
+
+- name: Download GitLab repository installation script
+  ansible.builtin.get_url:
+      url: https://packages.gitlab.com/install/repositories/gitlab/{{ gitlab_edition }}/script.deb.sh
+      dest: /tmp/gitlab_install_repository.sh
+      mode: "0755"
+
+- name: Run GitLab repository installation script
+  ansible.builtin.command: /tmp/gitlab_install_repository.sh
+  args:
+      creates: /etc/apt/sources.list.d/gitlab_gitlab-ee.list
+
+- name: Install GitLab with specified external URL
+  environment:
+      EXTERNAL_URL: "{{ gitlab_external_url }}"
+  ansible.builtin.apt:
+      name: "{{ gitlab_edition }}{% if gitlab_version != 'latest' %}={{ gitlab_version }}{% endif %}"
+      state: present
+      update_cache: true
+# - name: Pin GitLab version to prevent auto-updates
+#   ansible.builtin.command: apt-mark hold {{ gitlab_edition }}
+#   when: gitlab_pin_version
+
+# - name: Configure GitLab root password
+#   ansible.builtin.command: gitlab-rake "gitlab:password:reset[root,'{{ gitlab_root_password }}']"
+#   when: configure_root_password and gitlab_root_password != ""
+
+# - name: Reconfigure GitLab to apply changes
+#   ansible.builtin.command: gitlab-ctl reconfigure
+#   when: configure_root_password and gitlab_root_password != ""
