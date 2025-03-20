@@ -1,0 +1,12 @@
+---
+- name: Backup gitlab
+  hosts: gitlab
+  become: true
+  roles:
+    - { role: backup }
+
+- name: Restore gitlab
+  hosts: nogitlab
+  become: true
+  roles:
+    - { role: restore }

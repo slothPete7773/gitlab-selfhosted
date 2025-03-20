@@ -1,0 +1,62 @@
+---
+# tasks file for roles/restore
+
+- name: Retrieve backup file
+  ansible.builtin.set_fact:
+    backup_file: "{{ hostvars['node01']['backup_file'] }}"
+- name: Retrieve backup filepath
+  ansible.builtin.set_fact:
+    backup_filepath: "{{ hostvars['node01']['backup_filepath'] }}"
+- name: Retrieve backup name
+  ansible.builtin.set_fact:
+    backup: "{{ hostvars['node01']['backup'] }}"
+
+- name: Restore Gitlab secret
+  ansible.builtin.copy:
+    src: '~/Desktop/tmp/gitlab-secrets.json'
+    dest: '/etc/gitlab/gitlab-secrets.json'
+- name: Restore Gitlab configuration
+  ansible.builtin.copy:
+    src: '~/Desktop/tmp/gitlab.rb'
+    dest: '/etc/gitlab/gitlab.rb'
+- name: Execute Gitlab reconfigure
+  ansible.builtin.command: sudo gitlab-ctl reconfigure
+  register: gitlab_reconfig
+  failed_when: gitlab_reconfig.rc > 1
+  changed_when: gitlab_reconfig.rc == 1
+- name: Copy local backup TAR file to remote host
+  ansible.builtin.copy:
+    src: '~/Desktop/tmp/{{ backup_file }}'
+    dest: '{{ backup_filepath }}'
+    owner: 'git'
+    mode: '0644'
+- name: Stop remote Gitlab Puma service
+  ansible.builtin.command: sudo gitlab-ctl stop puma
+- name: Stop remote Gitlab Sidekiq service
+  ansible.builtin.command: sudo gitlab-ctl stop sidekiq
+- name: Execute Gitlab restore CLI
+  ansible.builtin.shell: "printf 'yes\\nyes\\n' | sudo gitlab-backup restore BACKUP={{ backup }}"
+  # ansible.builtin.command: 'sudo gitlab-backup restore BACKUP={{ backup }}'
+  # ansible.builtin.expect:
+  #   command: 'sudo gitlab-backup restore BACKUP={{ backup }}'
+  #   responses:
+  #     "Do you want to continue \\(yes/no\\)\\?":
+  #       - 'yes'
+- name: Restart Gitlab instance
+  ansible.builtin.command: 'sudo gitlab-ctl restart'
+- name: Sanitize check
+  ansible.builtin.command: 'sudo gitlab-rake gitlab:check SANITIZE=true'
+  register: rake_sanitize
+  failed_when: rake_sanitize.rc > 1
+  changed_when: rake_sanitize.rc == 1
+- name: Display sanitized check
+  ansible.builtin.debug:
+    var: rake_sanitize.stdout
+- name: Gitlab verify secrets integrity
+  ansible.builtin.command: 'sudo gitlab-rake gitlab:doctor:secrets'
+  register: doctor_secret
+  failed_when: doctor_secret.rc > 1
+  changed_when: doctor_secret.rc == 1
+- name: Display secret verification backup_output
+  ansible.builtin.debug:
+    var: doctor_secret.stdout

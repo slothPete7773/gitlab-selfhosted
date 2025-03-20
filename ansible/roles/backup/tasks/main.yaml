@@ -1,0 +1,61 @@
+---
+# tasks file for roles/backup
+- name: Ensure GitLab is installed on remote host
+  ansible.builtin.command: gitlab-ctl status
+  register: gitlab_status
+  failed_when: gitlab_status.rc > 1
+  changed_when: gitlab_status.rc == 1
+- name: test
+  ansible.builtin.debug: var=gitlab_status.stdout_lines
+- name: Ensure Rsynce is installed on remote host
+  ansible.builtin.command: rsync --version
+  register: rsync_version
+  failed_when: rsync_version.rc > 1
+  changed_when: rsync_version.rc == 1
+
+- name: Execute gitlab-backup command
+  ansible.builtin.command: sudo gitlab-backup create
+  register: backup_output
+- name: Extract backup name
+  ansible.builtin.set_fact:
+    backup: "{{ backup_output.stdout | regex_search('Backup (\\d+_\\d+_\\d+_\\d+_\\d+.\\d+.\\d+-ee) is done', '\\1') | first }}"
+- name: test-filename
+  ansible.builtin.debug:
+    var: backup
+- name: Extract backup file name
+  ansible.builtin.set_fact:
+    backup_file: "{{ backup_output.stdout | regex_search('Backup (\\d+_\\d+_\\d+_\\d+_\\d+.\\d+.\\d+-ee) is done', '\\1') | first }}_gitlab_backup.tar"
+- name: Edit file path
+  ansible.builtin.set_fact:
+    backup_filepath: "/var/opt/gitlab/backups/{{ backup_file }}"
+- name: test_deb
+  ansible.builtin.debug: var=backup_filepath
+- name: Ensure local temp directory exists
+  ansible.builtin.file:
+    path: ~/Desktop/tmp/
+    state: directory
+    mode: "0755"
+- name: Copy backup file from remote to local
+  ansible.builtin.fetch:
+    src: "{{ backup_filepath }}"
+    dest: "~/Desktop/tmp/{{ backup_file }}"
+    flat: yes
+- name: Copy gitlab-secrets.json file from remote to local
+  ansible.builtin.fetch:
+    src: /etc/gitlab/gitlab-secrets.json
+    dest: ~/Desktop/tmp/gitlab-secrets.json
+    flat: yes
+- name: Copy gitlab.rb configuration file from remote to local
+  ansible.builtin.fetch:
+    src: /etc/gitlab/gitlab.rb
+    dest: ~/Desktop/tmp/gitlab.rb
+    flat: yes
+# - name: Conditionally manually copy TLS Keys configuration file from remote to local
+# - name: Conditionally manually copy trusted certificates configuration file from remote to local
+- name: Start GitLab instance
+  ansible.builtin.command: gitlab-ctl start
+  register: gitlab_start
+  failed_when: gitlab_start.rc > 1
+  changed_when: gitlab_start.rc == 1
+- name: test
+  ansible.builtin.debug: var=gitlab_start.stdout_lines
