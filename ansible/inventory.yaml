@@ -1,0 +1,14 @@
+gitlab:
+  hosts:
+    node01:
+      ansible_host: <HOST_ADDRESS>
+      ansible_connection: ssh
+      ansible_user: root
+      # ansible_password: 
+nogitlab:
+  hosts:
+    node02:
+      ansible_host: <HOST_ADDRESS>
+      ansible_connection: ssh
+      ansible_user: root
+

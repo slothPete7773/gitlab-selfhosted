@@ -1,0 +1,7 @@
+---
+- name: Install gitlab
+  hosts: nogitlab
+  become: true
+
+  roles:
+    - { role: gitlab }

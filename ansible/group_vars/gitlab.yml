@@ -1,8 +1,0 @@
----
-gitlab_external_url: "http://localhost"
-gitlab_edition: "gitlab-ee"
-gitlab_version: latest # Set a specific version if needed, e.g. "16.2.3-ee.0"
-gitlab_pin_version: false
-# Set to true if you want to configure a custom root password
-configure_root_password: false
-gitlab_root_password: "" # Set this if configure_root_password is true
